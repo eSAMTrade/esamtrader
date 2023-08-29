@@ -11,12 +11,17 @@ import sdnotify
 
 from freqtrade import __version__
 from freqtrade.configuration import Configuration
-from freqtrade.constants import PROCESS_THROTTLE_SECS, RETRY_TIMEOUT, Config
+from freqtrade import constants
+# from freqtrade.constants import (PROCESS_THROTTLE_SECS, RETRY_TIMEOUT, Config,
+#                                  MIN_SIGNALS_NUMBER, MIN_DIF_SIGNALS_NUMBER, NUM_MODELS_IN_GROUP)
 from freqtrade.enums import State
 from freqtrade.exceptions import OperationalException, TemporaryError
 from freqtrade.exchange import timeframe_to_next_date
-from freqtrade.freqtradebot import FreqtradeBot
-
+#from freqtrade.freqtradebot import FreqtradeBot
+from freqtrade.esamtrade_bot import EsamtradeBot
+from freqtrade.templates.CurrentSignalGroup import CurrentSignalGroup
+from freqtrade.kafka.kafka_msg import KafkaMsgConsumer
+from freqtrade.util.signal import SignalV4
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +31,10 @@ class Worker:
     Freqtradebot worker class
     """
 
-    def __init__(self, args: Dict[str, Any], config: Optional[Config] = None, bot_class: Type[FreqtradeBot] = FreqtradeBot) -> None:
+    def __init__(self,
+                 args: Dict[str, Any],
+                 config: Optional[constants.Config] = None,
+                 bot_class: Type[EsamtradeBot] = EsamtradeBot) -> None:
         """
         Init all variables and objects the bot needs to work
         """
@@ -55,7 +63,7 @@ class Worker:
 
         internals_config = self._config.get('internals', {})
         self._throttle_secs = internals_config.get('process_throttle_secs',
-                                                   PROCESS_THROTTLE_SECS)
+                                                   constants.PROCESS_THROTTLE_SECS)
         self._heartbeat_interval = internals_config.get('heartbeat_interval', 60)
 
         self._sd_notify = sdnotify.SystemdNotifier() if \
@@ -72,12 +80,28 @@ class Worker:
 
     def run(self) -> None:
         state = None
+        signal_group = CurrentSignalGroup(
+            constants.MIN_SIGNALS_NUMBER,
+            constants.MIN_DIF_SIGNALS_NUMBER,
+            constants.NUM_MODELS_IN_GROUP
+        )
+        kafka_consumer = KafkaMsgConsumer(
+            topics=[constants.SIGNALS_GROUP_TOPIC_NAME],
+            address=constants.KAFKA_HOST,
+            port=constants.KAFKA_PORT
+        )
         while True:
-            state = self._worker(old_state=state)
+            kafka_msg = kafka_consumer.read_msg()
+            signal = SignalV4(**kafka_msg)
+            logger.info(f"{'BUY' if signal.direction==-1 else 'SELL'} "
+                        f"Signal received with confidence {signal.confidence}")
+            state = self._worker(old_state=state,
+                                 signal_group=signal_group,
+                                 signal=signal)
             if state == State.RELOAD_CONFIG:
                 self._reconfigure()
 
-    def _worker(self, old_state: Optional[State]) -> State:
+    def _worker(self, old_state: Optional[State], signal_group: CurrentSignalGroup, signal: SignalV4) -> State:
         """
         The main routine that runs each throttling iteration and handles the states.
         :param old_state: the previous service state from the previous call
@@ -113,10 +137,15 @@ class Worker:
             # Ping systemd watchdog before throttling
             self._notify("WATCHDOG=1\nSTATUS=State: RUNNING.")
 
+            #call strategy that read from kafka and call current signal decision
             # Use an offset of 1s to ensure a new candle has been issued
-            self._throttle(func=self._process_running, throttle_secs=self._throttle_secs,
-                           timeframe=self._config['timeframe'] if self._config else None,
-                           timeframe_offset=1)
+            # self._throttle(func=self._process_running, throttle_secs=self._throttle_secs,
+            #                timeframe=self._config['timeframe'] if self._config else None,
+            #                timeframe_offset=1)
+            act_on_signal = self.freqtrade.strategy.get_decision(signal, signal_group)
+            if act_on_signal:
+                logger.info(f"Acting on signal for {signal.symbol} with {'BUY' if signal.direction==1 else 'SELL'}")
+                self._process_running()
 
         if self._heartbeat_interval:
             now = time.time()
@@ -180,8 +209,8 @@ class Worker:
         try:
             self.freqtrade.process()
         except TemporaryError as error:
-            logger.warning(f"Error: {error}, retrying in {RETRY_TIMEOUT} seconds...")
-            time.sleep(RETRY_TIMEOUT)
+            logger.warning(f"Error: {error}, retrying in {constants.RETRY_TIMEOUT} seconds...")
+            time.sleep(constants.RETRY_TIMEOUT)
         except OperationalException:
             tb = traceback.format_exc()
             hint = 'Issue `/start` if you think it is safe to restart.'

@@ -5,8 +5,22 @@ bot constants
 """
 from typing import Any, Dict, List, Literal, Tuple
 
-from freqtrade.enums import CandleType, PriceType, RPCMessageType
+from decimal import Decimal
 
+from freqtrade.enums import CandleType, PriceType, RPCMessageType
+from os import getenv
+
+
+MIN_SIGNALS_NUMBER = getenv("MIN_SIGNALS_NUMBER", 1)
+MIN_DIF_SIGNALS_NUMBER = getenv("MIN_DIF_SIGNALS_NUMBER", 1)
+NUM_MODELS_IN_GROUP = getenv("NUM_MODELS_IN_GROUP", 10)
+
+SIGNALS_GROUP_TOPIC_NAME = getenv("SIGNALS_GROUP_TOPIC_NAME", "slack_test_hparam_tuning-20230804-111755")
+KAFKA_HOST = getenv("KAFKA_HOST", "10.1.0.2")
+KAFKA_PORT = getenv("KAFKA_PORT", 9092)
+
+MIN_DST_FOR_LMT_ORD_IN_PRC = Decimal("0.0001")  # in percent  0.01% from absolute price
+MAX_DST_FOR_LMT_ORD_IN_PRC = Decimal("0.2")  # in percent  20 % from absolute price
 
 DEFAULT_CONFIG = 'config.json'
 DEFAULT_EXCHANGE = 'bittrex'

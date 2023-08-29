@@ -246,7 +246,7 @@ class Wallets:
         :raise: DependencyException if balance is lower than stake-amount
         """
 
-        if self._config['amend_last_stake_amount']:
+        if self._config.get('amend_last_stake_amount'):
             # Remaining amount needs to be at least stake_amount * last_stake_amount_min_ratio
             # Otherwise the remaining amount is too low to trade.
             if available_amount > (stake_amount * self._config['last_stake_amount_min_ratio']):

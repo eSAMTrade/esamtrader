@@ -37,6 +37,7 @@ from freqtrade.strategy.informative_decorator import (
     _format_pair_name,
 )
 from freqtrade.strategy.strategy_wrapper import strategy_safe_wrapper
+from freqtrade.util.signal import SignalV4
 from freqtrade.wallets import Wallets
 
 logger = logging.getLogger(__name__)
@@ -137,6 +138,7 @@ class IStrategy(ABC, HyperStrategyMixin):
 
     # A self set parameter that represents the market direction. filled from configuration
     market_direction: MarketDirection = MarketDirection.NONE
+    esamtrade_signal: SignalV4 = None
 
     def __init__(self, config: Config) -> None:
         self.config = config
@@ -209,6 +211,10 @@ class IStrategy(ABC, HyperStrategyMixin):
         Clean up FreqAI and child threads
         """
         self.freqai.shutdown()
+
+    @abstractmethod
+    def get_decision(self, *args, **kwargs) -> Optional[SignalV4]:
+        return Optional[SignalV4]
 
     @abstractmethod
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:

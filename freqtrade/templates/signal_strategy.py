@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 # This class is a sample. Feel free to customize it.
 class SignalStrategy(IStrategy):
     """
+    dsfadsdgasfgafgasd
     This is a sample strategy to inspire you.
     More information in https://www.freqtrade.io/en/latest/strategy-customization/
 
@@ -137,18 +138,18 @@ class SignalStrategy(IStrategy):
 
         return dataframe
         # !!!!!!!!!
-        ob = self.dp.orderbook(metadata['pair'], 1)
-
-        """
-        # first check if dataprovider is available
-        if self.dp:
-            if self.dp.runmode.value in ('live', 'dry_run'):
-                ob = self.dp.orderbook(metadata['pair'], 1)
-                dataframe['best_bid'] = ob['bids'][0][0]
-                dataframe['best_ask'] = ob['asks'][0][0]
-        """
-
-        return dataframe
+        # ob = self.dp.orderbook(metadata['pair'], 1)
+        #
+        # """
+        # # first check if dataprovider is available
+        # if self.dp:
+        #     if self.dp.runmode.value in ('live', 'dry_run'):
+        #         ob = self.dp.orderbook(metadata['pair'], 1)
+        #         dataframe['best_bid'] = ob['bids'][0][0]
+        #         dataframe['best_ask'] = ob['asks'][0][0]
+        # """
+        #
+        # return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
@@ -200,7 +201,7 @@ class SignalStrategy(IStrategy):
             self._force_exit_ts = None
         return dataframe
 
-    # Unused yet as found another way to do it
+    #Unused yet as found another way to do it
     def get_position_entry_signal(
             self,
             pair: str,
