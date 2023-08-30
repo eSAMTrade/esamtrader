@@ -15,7 +15,7 @@ STOPLOSS_LIMIT_ORDERTYPE = 'stop-loss-limit'
 
 def test_buy_kraken_trading_agreement(default_conf, mocker):
     api_mock = MagicMock()
-    order_id = 'test_prod_buy_{}'.format(randint(0, 10 ** 6))
+    order_id = f'test_prod_buy_{randint(0, 10 ** 6)}'
     order_type = 'limit'
     time_in_force = 'ioc'
     api_mock.options = {}
@@ -29,7 +29,7 @@ def test_buy_kraken_trading_agreement(default_conf, mocker):
     default_conf['dry_run'] = False
 
     mocker.patch(f'{EXMS}.amount_to_precision', lambda s, x, y: y)
-    mocker.patch(f'{EXMS}.price_to_precision', lambda s, x, y: y)
+    mocker.patch(f'{EXMS}.price_to_precision', lambda s, x, y, **kwargs: y)
     exchange = get_patched_exchange(mocker, default_conf, api_mock, id="kraken")
 
     order = exchange.create_order(
@@ -56,7 +56,7 @@ def test_buy_kraken_trading_agreement(default_conf, mocker):
 
 def test_sell_kraken_trading_agreement(default_conf, mocker):
     api_mock = MagicMock()
-    order_id = 'test_prod_sell_{}'.format(randint(0, 10 ** 6))
+    order_id = f'test_prod_sell_{randint(0, 10 ** 6)}'
     order_type = 'market'
     api_mock.options = {}
     api_mock.create_order = MagicMock(return_value={
@@ -181,7 +181,7 @@ def test_get_balances_prod(default_conf, mocker):
 ])
 def test_create_stoploss_order_kraken(default_conf, mocker, ordertype, side, adjustedprice):
     api_mock = MagicMock()
-    order_id = 'test_prod_buy_{}'.format(randint(0, 10 ** 6))
+    order_id = f'test_prod_buy_{randint(0, 10 ** 6)}'
 
     api_mock.create_order = MagicMock(return_value={
         'id': order_id,
@@ -192,7 +192,7 @@ def test_create_stoploss_order_kraken(default_conf, mocker, ordertype, side, adj
 
     default_conf['dry_run'] = False
     mocker.patch(f'{EXMS}.amount_to_precision', lambda s, x, y: y)
-    mocker.patch(f'{EXMS}.price_to_precision', lambda s, x, y: y)
+    mocker.patch(f'{EXMS}.price_to_precision', lambda s, x, y, **kwargs: y)
 
     exchange = get_patched_exchange(mocker, default_conf, api_mock, 'kraken')
 
@@ -263,7 +263,7 @@ def test_create_stoploss_order_dry_run_kraken(default_conf, mocker, side):
     api_mock = MagicMock()
     default_conf['dry_run'] = True
     mocker.patch(f'{EXMS}.amount_to_precision', lambda s, x, y: y)
-    mocker.patch(f'{EXMS}.price_to_precision', lambda s, x, y: y)
+    mocker.patch(f'{EXMS}.price_to_precision', lambda s, x, y, **kwargs: y)
 
     exchange = get_patched_exchange(mocker, default_conf, api_mock, 'kraken')
 

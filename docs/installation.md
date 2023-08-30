@@ -30,12 +30,6 @@ The easiest way to install and run Freqtrade is to clone the bot Github reposito
 !!! Warning "Up-to-date clock"
     The clock on the system running the bot must be accurate, synchronized to a NTP server frequently enough to avoid problems with communication to the exchanges.
 
-!!! Error "Running setup.py install for gym did not run successfully."
-    If you get an error related with gym we suggest you to downgrade setuptools it to version 65.5.0 you can do it with the following command:
-    ```bash
-    pip install setuptools==65.5.0
-    ```
-
 ------
 
 ## Requirements
@@ -52,7 +46,7 @@ These requirements apply to both [Script Installation](#script-installation) and
 * [pip](https://pip.pypa.io/en/stable/installing/)
 * [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 * [virtualenv](https://virtualenv.pypa.io/en/stable/installation.html) (Recommended)
-* [TA-Lib](https://mrjbq7.github.io/ta-lib/install.html) (install instructions [below](#install-ta-lib))
+* [TA-Lib](https://ta-lib.github.io/ta-lib-python/) (install instructions [below](#install-ta-lib))
 
 ### Install code
 
@@ -149,11 +143,11 @@ If you are on Debian, Ubuntu or MacOS, freqtrade provides the script to install 
 
 ### Activate your virtual environment
 
-Each time you open a new terminal, you must run `source .env/bin/activate` to activate your virtual environment.
+Each time you open a new terminal, you must run `source .venv/bin/activate` to activate your virtual environment.
 
 ```bash
-# then activate your .env
-source ./.env/bin/activate
+# activate virtual environment
+source ./.venv/bin/activate
 ```
 
 ### Congratulations
@@ -178,7 +172,7 @@ With this option, the script will install the bot and most dependencies:
 You will need to have git and python3.8+ installed beforehand for this to work.
 
 * Mandatory software as: `ta-lib`
-* Setup your virtualenv under `.env/`
+* Setup your virtualenv under `.venv/`
 
 This option is a combination of installation tasks and `--reset`
 
@@ -210,7 +204,7 @@ sudo ./build_helpers/install_ta-lib.sh
 
 ##### TA-Lib manual installation
 
-Official webpage: https://mrjbq7.github.io/ta-lib/install.html
+[Official installation guide](https://ta-lib.github.io/ta-lib-python/install.html)
 
 ```bash
 wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
@@ -231,17 +225,18 @@ rm -rf ./ta-lib*
 You will run freqtrade in separated `virtual environment`
 
 ```bash
-# create virtualenv in directory /freqtrade/.env
-python3 -m venv .env
+# create virtualenv in directory /freqtrade/.venv
+python3 -m venv .venv
 
 # run virtualenv
-source .env/bin/activate
+source .venv/bin/activate
 ```
 
 #### Install python dependencies
 
 ```bash
 python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
 python3 -m pip install -e .
 ```
 
@@ -291,7 +286,7 @@ cd freqtrade
 #### Freqtrade install: Conda Environment
 
 ```bash
-conda create --name freqtrade python=3.10
+conda create --name freqtrade python=3.11
 ```
 
 !!! Note "Creating Conda Environment"
@@ -388,7 +383,7 @@ You've made it this far, so you have successfully installed freqtrade.
 freqtrade create-userdir --userdir user_data
 
 # Step 2 - Create a new configuration file
-freqtrade new-config --config config.json
+freqtrade new-config --config user_data/config.json
 ```
 
 You are ready to run, read [Bot Configuration](configuration.md), remember to start with `dry_run: True` and verify that everything is working.
@@ -398,7 +393,7 @@ To learn how to setup your configuration, please refer to the [Bot Configuration
 ### Start the Bot
 
 ```bash
-freqtrade trade --config config.json --strategy SampleStrategy
+freqtrade trade --config user_data/config.json --strategy SampleStrategy
 ```
 
 !!! Warning
@@ -416,8 +411,8 @@ If you used (1)`Script` or (2)`Manual` installation, you need to run the bot in 
 # if:
 bash: freqtrade: command not found
 
-# then activate your .env
-source ./.env/bin/activate
+# then activate your virtual environment
+source ./.venv/bin/activate
 ```
 
 ### MacOS installation error

@@ -9,7 +9,6 @@ from unittest.mock import MagicMock, PropertyMock
 import numpy as np
 import pandas as pd
 import pytest
-from arrow import Arrow
 
 from freqtrade import constants
 from freqtrade.commands.optimize_commands import setup_optimize_configuration, start_backtesting
@@ -21,11 +20,12 @@ from freqtrade.data.dataprovider import DataProvider
 from freqtrade.data.history import get_timerange
 from freqtrade.enums import CandleType, ExitType, RunMode
 from freqtrade.exceptions import DependencyException, OperationalException
-from freqtrade.exchange.exchange import timeframe_to_next_date
-from freqtrade.optimize.backtest_caching import get_strategy_run_id
+from freqtrade.exchange import timeframe_to_next_date, timeframe_to_prev_date
+from freqtrade.optimize.backtest_caching import get_backtest_metadata_filename, get_strategy_run_id
 from freqtrade.optimize.backtesting import Backtesting
 from freqtrade.persistence import LocalTrade, Trade
 from freqtrade.resolvers import StrategyResolver
+from freqtrade.util.datetime_helpers import dt_utc
 from tests.conftest import (CURRENT_TEST_STRATEGY, EXMS, get_args, log_has, log_has_re,
                             patch_exchange, patched_configuration_load_config_file)
 
@@ -344,9 +344,9 @@ def test_backtest_abort(default_conf, mocker, testdatadir) -> None:
     assert backtesting.progress.progress == 0
 
 
-def test_backtesting_start(default_conf, mocker, testdatadir, caplog) -> None:
+def test_backtesting_start(default_conf, mocker, caplog) -> None:
     def get_timerange(input1):
-        return Arrow(2017, 11, 14, 21, 17), Arrow(2017, 11, 14, 22, 59)
+        return dt_utc(2017, 11, 14, 21, 17), dt_utc(2017, 11, 14, 22, 59)
 
     mocker.patch('freqtrade.data.history.get_timerange', get_timerange)
     patch_exchange(mocker)
@@ -354,7 +354,7 @@ def test_backtesting_start(default_conf, mocker, testdatadir, caplog) -> None:
     mocker.patch('freqtrade.optimize.backtesting.generate_backtest_stats')
     mocker.patch('freqtrade.optimize.backtesting.show_backtest_results')
     sbs = mocker.patch('freqtrade.optimize.backtesting.store_backtest_stats')
-    sbc = mocker.patch('freqtrade.optimize.backtesting.store_backtest_signal_candles')
+    sbc = mocker.patch('freqtrade.optimize.backtesting.store_backtest_analysis_results')
     mocker.patch('freqtrade.plugins.pairlistmanager.PairListManager.whitelist',
                  PropertyMock(return_value=['UNITTEST/BTC']))
 
@@ -367,6 +367,7 @@ def test_backtesting_start(default_conf, mocker, testdatadir, caplog) -> None:
     backtesting = Backtesting(default_conf)
     backtesting._set_strategy(backtesting.strategylist[0])
     backtesting.strategy.bot_loop_start = MagicMock()
+    backtesting.strategy.bot_start = MagicMock()
     backtesting.start()
     # check the logs, that will contain the backtest result
     exists = [
@@ -376,14 +377,15 @@ def test_backtesting_start(default_conf, mocker, testdatadir, caplog) -> None:
     for line in exists:
         assert log_has(line, caplog)
     assert backtesting.strategy.dp._pairlists is not None
-    assert backtesting.strategy.bot_loop_start.call_count == 1
+    assert backtesting.strategy.bot_start.call_count == 1
+    assert backtesting.strategy.bot_loop_start.call_count == 0
     assert sbs.call_count == 1
     assert sbc.call_count == 1
 
 
 def test_backtesting_start_no_data(default_conf, mocker, caplog, testdatadir) -> None:
     def get_timerange(input1):
-        return Arrow(2017, 11, 14, 21, 17), Arrow(2017, 11, 14, 22, 59)
+        return dt_utc(2017, 11, 14, 21, 17), dt_utc(2017, 11, 14, 22, 59)
 
     mocker.patch('freqtrade.data.history.history_utils.load_pair_history',
                  MagicMock(return_value=pd.DataFrame()))
@@ -599,6 +601,9 @@ def test_backtest__enter_trade_futures(default_conf_usdt, fee, mocker) -> None:
 
     trade = backtesting._enter_trade(pair, row=row, direction='short')
     assert pytest.approx(trade.liquidation_price) == 0.11787191
+    assert pytest.approx(trade.orders[0].cost) == (
+        trade.stake_amount * trade.leverage + trade.fee_open)
+    assert pytest.approx(trade.orders[-1].stake_amount) == trade.stake_amount
 
     # Stake-amount too high!
     mocker.patch(f"{EXMS}.get_min_pair_stake_amount", return_value=600.0)
@@ -708,11 +713,11 @@ def test_backtest_one(default_conf, fee, mocker, testdatadir) -> None:
          'stake_amount': [0.001, 0.001],
          'max_stake_amount': [0.001, 0.001],
          'amount': [0.00957442, 0.0097064],
-         'open_date': pd.to_datetime([Arrow(2018, 1, 29, 18, 40, 0).datetime,
-                                      Arrow(2018, 1, 30, 3, 30, 0).datetime], utc=True
+         'open_date': pd.to_datetime([dt_utc(2018, 1, 29, 18, 40, 0),
+                                      dt_utc(2018, 1, 30, 3, 30, 0)], utc=True
                                      ),
-         'close_date': pd.to_datetime([Arrow(2018, 1, 29, 22, 35, 0).datetime,
-                                       Arrow(2018, 1, 30, 4, 10, 0).datetime], utc=True),
+         'close_date': pd.to_datetime([dt_utc(2018, 1, 29, 22, 35, 0),
+                                       dt_utc(2018, 1, 30, 4, 10, 0)], utc=True),
          'open_rate': [0.104445, 0.10302485],
          'close_rate': [0.104969, 0.103541],
          'fee_open': [0.0025, 0.0025],
@@ -1117,10 +1122,10 @@ def test_backtest_dataprovider_analyzed_df(default_conf, fee, mocker, testdatadi
     processed = backtesting.strategy.advise_all_indicators(data)
     min_date, max_date = get_timerange(processed)
 
-    global count
     count = 0
 
     def tmp_confirm_entry(pair, current_time, **kwargs):
+        nonlocal count
         dp = backtesting.strategy.dp
         df, _ = dp.get_analyzed_dataframe(pair, backtesting.strategy.timeframe)
         current_candle = df.iloc[-1].squeeze()
@@ -1130,8 +1135,13 @@ def test_backtest_dataprovider_analyzed_df(default_conf, fee, mocker, testdatadi
         assert candle_date == current_time
         # These asserts don't properly raise as they are nested,
         # therefore we increment count and assert for that.
-        global count
-        count = count + 1
+        df = dp.get_pair_dataframe(pair, backtesting.strategy.timeframe)
+        prior_time = timeframe_to_prev_date(backtesting.strategy.timeframe,
+                                            candle_date - timedelta(seconds=1))
+        assert prior_time == df.iloc[-1].squeeze()['date']
+        assert df.iloc[-1].squeeze()['date'] < current_time
+
+        count += 1
 
     backtesting.strategy.confirm_trade_entry = tmp_confirm_entry
     backtesting.backtest(
@@ -1349,11 +1359,11 @@ def test_backtest_multi_pair(default_conf, fee, mocker, tres, pair, testdatadir)
 
     # Cached data correctly removed amounts
     offset = 1 if tres == 0 else 0
-    removed_candles = len(data[pair]) - offset - backtesting.strategy.startup_candle_count
+    removed_candles = len(data[pair]) - offset
     assert len(backtesting.dataprovider.get_analyzed_dataframe(pair, '5m')[0]) == removed_candles
     assert len(
         backtesting.dataprovider.get_analyzed_dataframe('NXT/BTC', '5m')[0]
-    ) == len(data['NXT/BTC']) - 1 - backtesting.strategy.startup_candle_count
+    ) == len(data['NXT/BTC']) - 1
 
     backtesting.strategy.max_open_trades = 1
     backtesting.config.update({'max_open_trades': 1})
@@ -1435,9 +1445,11 @@ def test_backtest_start_multi_strat(default_conf, mocker, caplog, testdatadir):
     strattable_mock = MagicMock()
     strat_summary = MagicMock()
 
-    mocker.patch.multiple('freqtrade.optimize.optimize_reports',
+    mocker.patch.multiple('freqtrade.optimize.optimize_reports.bt_output',
                           text_table_bt_results=text_table_mock,
                           text_table_strategy=strattable_mock,
+                          )
+    mocker.patch.multiple('freqtrade.optimize.optimize_reports.optimize_reports',
                           generate_pair_metrics=MagicMock(),
                           generate_exit_reason_stats=sell_reason_mock,
                           generate_strategy_comparison=strat_summary,
@@ -1991,3 +2003,40 @@ def test_get_strategy_run_id(default_conf_usdt):
     strategy = StrategyResolver.load_strategy(default_conf_usdt)
     x = get_strategy_run_id(strategy)
     assert isinstance(x, str)
+
+
+def test_get_backtest_metadata_filename():
+    # Test with a file path
+    filename = Path('backtest_results.json')
+    expected = Path('backtest_results.meta.json')
+    assert get_backtest_metadata_filename(filename) == expected
+
+    # Test with a file path with multiple dots in the name
+    filename = Path('/path/to/backtest.results.json')
+    expected = Path('/path/to/backtest.results.meta.json')
+    assert get_backtest_metadata_filename(filename) == expected
+
+    # Test with a file path with no parent directory
+    filename = Path('backtest_results.json')
+    expected = Path('backtest_results.meta.json')
+    assert get_backtest_metadata_filename(filename) == expected
+
+    # Test with a string file path
+    filename = '/path/to/backtest_results.json'
+    expected = Path('/path/to/backtest_results.meta.json')
+    assert get_backtest_metadata_filename(filename) == expected
+
+    # Test with a string file path with no extension
+    filename = '/path/to/backtest_results'
+    expected = Path('/path/to/backtest_results.meta')
+    assert get_backtest_metadata_filename(filename) == expected
+
+    # Test with a string file path with multiple dots in the name
+    filename = '/path/to/backtest.results.json'
+    expected = Path('/path/to/backtest.results.meta.json')
+    assert get_backtest_metadata_filename(filename) == expected
+
+    # Test with a string file path with no parent directory
+    filename = 'backtest_results.json'
+    expected = Path('backtest_results.meta.json')
+    assert get_backtest_metadata_filename(filename) == expected

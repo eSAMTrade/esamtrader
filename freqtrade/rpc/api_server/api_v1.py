@@ -12,7 +12,8 @@ from freqtrade.exceptions import OperationalException
 from freqtrade.rpc import RPC
 from freqtrade.rpc.api_server.api_schemas import (AvailablePairs, Balances, BlacklistPayload,
                                                   BlacklistResponse, Count, Daily,
-                                                  DeleteLockRequest, DeleteTrade, ForceEnterPayload,
+                                                  DeleteLockRequest, DeleteTrade,
+                                                  ExchangeListResponse, ForceEnterPayload,
                                                   ForceEnterResponse, ForceExitPayload,
                                                   FreqAIModelListResponse, Health, Locks, Logs,
                                                   OpenTradeSchema, PairHistory, PerformanceEntry,
@@ -43,7 +44,14 @@ logger = logging.getLogger(__name__)
 # 2.23: Allow plot config request in webserver mode
 # 2.24: Add cancel_open_order endpoint
 # 2.25: Add several profit values to /status endpoint
-API_VERSION = 2.25
+# 2.26: increase /balance output
+# 2.27: Add /trades/<id>/reload endpoint
+# 2.28: Switch reload endpoint to Post
+# 2.29: Add /exchanges endpoint
+# 2.30: new /pairlists endpoint
+# 2.31: new /backtest/history/ delete endpoint
+# 2.32: new /backtest/history/ patch endpoint
+API_VERSION = 2.32
 
 # Public API, requires no auth.
 router_public = APIRouter()
@@ -126,8 +134,14 @@ def trades_delete(tradeid: int, rpc: RPC = Depends(get_rpc)):
 
 
 @router.delete('/trades/{tradeid}/open-order', response_model=OpenTradeSchema,  tags=['trading'])
-def cancel_open_order(tradeid: int, rpc: RPC = Depends(get_rpc)):
+def trade_cancel_open_order(tradeid: int, rpc: RPC = Depends(get_rpc)):
     rpc._rpc_cancel_open_order(tradeid)
+    return rpc._rpc_trade_status([tradeid])[0]
+
+
+@router.post('/trades/{tradeid}/reload', response_model=OpenTradeSchema,  tags=['trading'])
+def trade_reload(tradeid: int, rpc: RPC = Depends(get_rpc)):
+    rpc._rpc_reload_trade_from_exchange(tradeid)
     return rpc._rpc_trade_status([tradeid])[0]
 
 
@@ -161,9 +175,9 @@ def force_entry(payload: ForceEnterPayload, rpc: RPC = Depends(get_rpc)):
                                  leverage=payload.leverage)
 
     if trade:
-        return ForceEnterResponse.parse_obj(trade.to_json())
+        return ForceEnterResponse.model_validate(trade.to_json())
     else:
-        return ForceEnterResponse.parse_obj(
+        return ForceEnterResponse.model_validate(
             {"status": f"Error entering {payload.side} trade for pair {payload.pair}."})
 
 
@@ -246,14 +260,20 @@ def pair_candles(
 
 @router.get('/pair_history', response_model=PairHistory, tags=['candle data'])
 def pair_history(pair: str, timeframe: str, timerange: str, strategy: str,
+                 freqaimodel: Optional[str] = None,
                  config=Depends(get_config), exchange=Depends(get_exchange)):
     # The initial call to this endpoint can be slow, as it may need to initialize
     # the exchange class.
     config = deepcopy(config)
     config.update({
         'strategy': strategy,
+        'timerange': timerange,
+        'freqaimodel': freqaimodel if freqaimodel else config.get('freqaimodel'),
     })
-    return RPC._rpc_analysed_history_full(config, pair, timeframe, timerange, exchange)
+    try:
+        return RPC._rpc_analysed_history_full(config, pair, timeframe, exchange)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.get('/plot_config', response_model=PlotConfig, tags=['candle data'])
@@ -262,13 +282,16 @@ def plot_config(strategy: Optional[str] = None, config=Depends(get_config),
     if not strategy:
         if not rpc:
             raise RPCException("Strategy is mandatory in webserver mode.")
-        return PlotConfig.parse_obj(rpc._rpc_plot_config())
+        return PlotConfig.model_validate(rpc._rpc_plot_config())
     else:
         config1 = deepcopy(config)
         config1.update({
             'strategy': strategy
         })
-        return PlotConfig.parse_obj(RPC._rpc_plot_config_with_strategy(config1))
+    try:
+        return PlotConfig.model_validate(RPC._rpc_plot_config_with_strategy(config1))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.get('/strategies', response_model=StrategyListResponse, tags=['strategy'])
@@ -293,21 +316,31 @@ def get_strategy(strategy: str, config=Depends(get_config)):
                                                        extra_dir=config_.get('strategy_path'))
     except OperationalException:
         raise HTTPException(status_code=404, detail='Strategy not found')
-
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
     return {
         'strategy': strategy_obj.get_strategy_name(),
         'code': strategy_obj.__source__,
     }
 
 
+@router.get('/exchanges', response_model=ExchangeListResponse, tags=[])
+def list_exchanges(config=Depends(get_config)):
+    from freqtrade.exchange import list_available_exchanges
+    exchanges = list_available_exchanges(config)
+    return {
+        'exchanges': exchanges,
+    }
+
+
 @router.get('/freqaimodels', response_model=FreqAIModelListResponse, tags=['freqai'])
 def list_freqaimodels(config=Depends(get_config)):
     from freqtrade.resolvers.freqaimodel_resolver import FreqaiModelResolver
-    strategies = FreqaiModelResolver.search_all_objects(
+    models = FreqaiModelResolver.search_all_objects(
         config, False)
-    strategies = sorted(strategies, key=lambda x: x['name'])
+    models = sorted(models, key=lambda x: x['name'])
 
-    return {'freqaimodels': [x['name'] for x in strategies]}
+    return {'freqaimodels': [x['name'] for x in models]}
 
 
 @router.get('/available_pairs', response_model=AvailablePairs, tags=['candle data'])

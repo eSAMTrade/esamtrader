@@ -187,11 +187,13 @@ official commands. You can ask at any moment for help with `/help`.
 | `/forcelong <pair> [rate]` | Instantly buys the given pair. Rate is optional and only applies to limit orders. (`force_entry_enable` must be set to True)
 | `/forceshort <pair> [rate]` | Instantly shorts the given pair. Rate is optional and only applies to limit orders. This will only work on non-spot markets. (`force_entry_enable` must be set to True)
 | `/delete <trade_id>` | Delete a specific trade from the Database. Tries to close open orders. Requires manual handling of this trade on the exchange.
+| `/reload_trade <trade_id>` | Reload a trade from the Exchange. Only works in live, and can potentially help recover a trade that was manually sold on the exchange.
 | `/cancel_open_order <trade_id> | /coo <trade_id>` | Cancel an open order for a trade.
 | **Metrics** |
 | `/profit [<n>]` | Display a summary of your profit/loss from close trades and some stats about your performance, over the last n days (all trades by default)
 | `/performance` | Show performance of each finished trade grouped by pair
-| `/balance` | Show account balance per currency
+| `/balance` | Show bot managed balance per currency
+| `/balance full` | Show account balance per currency
 | `/daily <n>` | Shows profit or loss per day, over the last n days (n defaults to 7)
 | `/weekly <n>` | Shows profit or loss per week, over the last n weeks (n defaults to 8)
 | `/monthly <n>` | Shows profit or loss per month, over the last n months (n defaults to 6)
@@ -201,7 +203,6 @@ official commands. You can ask at any moment for help with `/help`.
 | `/whitelist [sorted] [baseonly]` | Show the current whitelist. Optionally display in alphabetical order and/or with just the base currency of each pairing.
 | `/blacklist [pair]` | Show the current blacklist, or adds a pair to the blacklist.
 | `/edge` | Show validated pairs by Edge if it is enabled.
-
 
 ## Telegram commands in action
 
@@ -279,19 +280,26 @@ Return a summary of your profit/loss and performance.
 >   ∙ `33.095 EUR`
 >
 > **Total Trade Count:** `138`
+> **Bot started:** `2022-07-11 18:40:44`
 > **First Trade opened:** `3 days ago`
 > **Latest Trade opened:** `2 minutes ago`
 > **Avg. Duration:** `2:33:45`
 > **Best Performing:** `PAY/BTC: 50.23%`
 > **Trading volume:** `0.5 BTC`
 > **Profit factor:** `1.04`
+> **Win / Loss:** `102 / 36`
+> **Winrate:** `73.91%`
+> **Expectancy (Ratio):** `4.87 (1.66)`
 > **Max Drawdown:** `9.23% (0.01255 BTC)`
 
 The relative profit of `1.2%` is the average profit per trade.
 The relative profit of `15.2 Σ%` is be based on the starting capital - so in this case, the starting capital was `0.00485701 * 1.152 = 0.00738 BTC`.
 Starting capital is either taken from the `available_capital` setting, or calculated by using current wallet size - profits.
 Profit Factor is calculated as gross profits / gross losses - and should serve as an overall metric for the strategy.
+Expectancy corresponds to the average return per currency unit at risk, i.e. the winrate and the risk-reward ratio (the average gain of winning trades compared to the average loss of losing trades).
+Expectancy Ratio is expected profit or loss of a subsequent trade based on the performance of all past trades.
 Max drawdown corresponds to the backtesting metric `Absolute Drawdown (Account)` - calculated as `(Absolute Drawdown) / (DrawdownHigh + startingBalance)`.
+Bot started date will refer to the date the bot was first started. For older bots, this will default to the first trade's open date.
 
 ### /forceexit <trade_id>
 

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import ccxt
 import pytest
 
-from freqtrade.exceptions import DependencyException, InvalidOrderException, OperationalException
+from freqtrade.exceptions import DependencyException, InvalidOrderException
 from tests.conftest import EXMS, get_patched_exchange
 from tests.exchange.test_exchange import ccxt_exceptionhandlers
 
@@ -16,7 +16,7 @@ from tests.exchange.test_exchange import ccxt_exceptionhandlers
 ])
 def test_create_stoploss_order_huobi(default_conf, mocker, limitratio, expected, side):
     api_mock = MagicMock()
-    order_id = 'test_prod_buy_{}'.format(randint(0, 10 ** 6))
+    order_id = f'test_prod_buy_{randint(0, 10 ** 6)}'
     order_type = 'stop-limit'
 
     api_mock.create_order = MagicMock(return_value={
@@ -27,11 +27,11 @@ def test_create_stoploss_order_huobi(default_conf, mocker, limitratio, expected,
     })
     default_conf['dry_run'] = False
     mocker.patch(f'{EXMS}.amount_to_precision', lambda s, x, y: y)
-    mocker.patch(f'{EXMS}.price_to_precision', lambda s, x, y: y)
+    mocker.patch(f'{EXMS}.price_to_precision', lambda s, x, y, **kwargs: y)
 
     exchange = get_patched_exchange(mocker, default_conf, api_mock, 'huobi')
 
-    with pytest.raises(OperationalException):
+    with pytest.raises(InvalidOrderException):
         order = exchange.create_stoploss(pair='ETH/BTC', amount=1, stop_price=190,
                                          order_types={'stoploss_on_exchange_limit_ratio': 1.05},
                                          side=side,
@@ -80,11 +80,11 @@ def test_create_stoploss_order_dry_run_huobi(default_conf, mocker):
     order_type = 'stop-limit'
     default_conf['dry_run'] = True
     mocker.patch(f'{EXMS}.amount_to_precision', lambda s, x, y: y)
-    mocker.patch(f'{EXMS}.price_to_precision', lambda s, x, y: y)
+    mocker.patch(f'{EXMS}.price_to_precision', lambda s, x, y, **kwargs: y)
 
     exchange = get_patched_exchange(mocker, default_conf, api_mock, 'huobi')
 
-    with pytest.raises(OperationalException):
+    with pytest.raises(InvalidOrderException):
         order = exchange.create_stoploss(pair='ETH/BTC', amount=1, stop_price=190,
                                          order_types={'stoploss_on_exchange_limit_ratio': 1.05},
                                          side='sell', leverage=1.0)

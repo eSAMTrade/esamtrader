@@ -553,7 +553,7 @@ def test_VolumePairList_whitelist_gen(mocker, whitelist_conf, shitcoinmarkets, t
         assert isinstance(whitelist, list)
 
         # Verify length of pairlist matches (used for ShuffleFilter without seed)
-        if type(whitelist_result) is list:
+        if isinstance(whitelist_result, list):
             assert whitelist == whitelist_result
         else:
             len(whitelist) == whitelist_result
@@ -711,8 +711,8 @@ def test_PrecisionFilter_error(mocker, whitelist_conf) -> None:
 
 def test_PerformanceFilter_error(mocker, whitelist_conf, caplog) -> None:
     whitelist_conf['pairlists'] = [{"method": "StaticPairList"}, {"method": "PerformanceFilter"}]
-    if hasattr(Trade, 'query'):
-        del Trade.query
+    if hasattr(Trade, 'session'):
+        del Trade.session
     mocker.patch(f'{EXMS}.exchange_has', MagicMock(return_value=True))
     exchange = get_patched_exchange(mocker, whitelist_conf)
     pm = PairListManager(exchange, whitelist_conf, MagicMock())
@@ -1200,6 +1200,10 @@ def test_spreadfilter_invalid_data(mocker, default_conf, markets, tickers, caplo
      "[{'ProducerPairList': 'ProducerPairList - default'}]",
      None
      ),
+    ({"method": "RemotePairList", "number_assets": 10, "pairlist_url": "https://example.com"},
+     "[{'RemotePairList': 'RemotePairList - 10 pairs from RemotePairlist.'}]",
+     None
+     ),
 ])
 def test_pricefilter_desc(mocker, whitelist_conf, markets, pairlistconfig,
                           desc_expected, exception_expected):
@@ -1366,7 +1370,12 @@ def test_expand_pairlist(wildcardlist, pairs, expected):
     (['BTC/USD'],
      ['BTC/USD', 'BTC/USDT'],
      ['BTC/USD']),
-
+    (['BTC/USDT:USDT'],
+     ['BTC/USDT:USDT', 'BTC/USDT'],
+     ['BTC/USDT:USDT']),
+    (['BB_BTC/USDT', 'CC_BTC/USDT', 'AA_ETH/USDT', 'XRP/USDT', 'ETH/USDT', 'XX_BTC/USDT'],
+     ['BTC/USDT', 'ETH/USDT'],
+     ['XRP/USDT', 'ETH/USDT']),
 ])
 def test_expand_pairlist_keep_invalid(wildcardlist, pairs, expected):
     if expected is None:

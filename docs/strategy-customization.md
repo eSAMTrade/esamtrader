@@ -342,15 +342,11 @@ The above configuration would therefore mean:
 
 The calculation does include fees.
 
-To disable ROI completely, set it to an insanely high number:
+To disable ROI completely, set it to an empty dictionary:
 
 ```python
-minimal_roi = {
-    "0": 100
-}
+minimal_roi = {}
 ```
-
-While technically not completely disabled, this would exit once the trade reaches 10000% Profit.
 
 To use times based on candle duration (timeframe), the following snippet can be handy.
 This will allow you to change the timeframe for the strategy, and ROI times will still be set as candles (e.g. after 3 candles ...)
@@ -905,7 +901,8 @@ Stoploss values returned from `custom_stoploss` must specify a percentage relati
         use_custom_stoploss = True
 
         def custom_stoploss(self, pair: str, trade: 'Trade', current_time: datetime,
-                            current_rate: float, current_profit: float, **kwargs) -> float:
+                            current_rate: float, current_profit: float, after_fill: bool,
+                            **kwargs) -> Optional[float]:
 
             # once the profit has risen above 10%, keep the stoploss at 7% above the open price
             if current_profit > 0.10:
@@ -947,7 +944,8 @@ In some situations it may be confusing to deal with stops relative to current ra
             return dataframe
 
         def custom_stoploss(self, pair: str, trade: 'Trade', current_time: datetime,
-                            current_rate: float, current_profit: float, **kwargs) -> float:
+                            current_rate: float, current_profit: float, after_fill: bool,
+                            **kwargs) -> Optional[float]:
             dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
             candle = dataframe.iloc[-1].squeeze()
             return stoploss_from_absolute(current_rate - (candle['atr'] * 2), current_rate, is_short=trade.is_short)
@@ -1040,11 +1038,10 @@ from datetime import timedelta, datetime, timezone
 
 # Within populate indicators (or populate_buy):
 if self.config['runmode'].value in ('live', 'dry_run'):
-   # fetch closed trades for the last 2 days
-    trades = Trade.get_trades([Trade.pair == metadata['pair'],
-                               Trade.open_date > datetime.utcnow() - timedelta(days=2),
-                               Trade.is_open.is_(False),
-                ]).all()
+    # fetch closed trades for the last 2 days
+    trades = Trade.get_trades_proxy(
+        pair=metadata['pair'], is_open=False, 
+        open_date=datetime.now(timezone.utc) - timedelta(days=2))
     # Analyze the conditions you'd like to lock the pair .... will probably be different for every strategy
     sumprofit = sum(trade.close_profit for trade in trades)
     if sumprofit < 0:
