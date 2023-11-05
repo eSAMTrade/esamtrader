@@ -347,8 +347,8 @@ async def test_telegram_status_multi_entry(default_conf, update, mocker, fee) ->
     msg = msg_mock.call_args_list[3][0][0]
     assert re.search(r'Number of Entries.*2', msg)
     assert re.search(r'Number of Exits.*1', msg)
-    assert re.search(r'Average Entry Price', msg)
-    assert re.search(r'Order filled', msg)
+    assert re.search(r'from 1st entry rate', msg)
+    assert re.search(r'Order Filled', msg)
     assert re.search(r'Close Date:', msg) is None
     assert re.search(r'Close Profit:', msg) is None
 
@@ -1359,9 +1359,18 @@ async def test_force_enter_no_pair(default_conf, update, mocker) -> None:
     assert reduce(lambda acc, x: acc + len(x), keyboard, 0) == 5
     update = MagicMock()
     update.callback_query = AsyncMock()
-    update.callback_query.data = 'XRP/USDT_||_long'
+    update.callback_query.data = 'force_enter__XRP/USDT_||_long'
     await telegram._force_enter_inline(update, None)
     assert fbuy_mock.call_count == 1
+
+    fbuy_mock.reset_mock()
+    update.callback_query = AsyncMock()
+    update.callback_query.data = 'force_enter__cancel'
+    await telegram._force_enter_inline(update, None)
+    assert fbuy_mock.call_count == 0
+    query = update.callback_query
+    assert query.edit_message_text.call_count == 1
+    assert query.edit_message_text.call_args_list[-1][1]['text'] == "Force enter canceled."
 
 
 async def test_telegram_performance_handle(default_conf_usdt, update, ticker, fee, mocker) -> None:

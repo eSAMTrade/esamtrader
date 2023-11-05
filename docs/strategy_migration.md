@@ -280,7 +280,7 @@ After:
 
 ``` python hl_lines="3"
 class AwesomeStrategy(IStrategy):
-    def custom_entry_price(self, pair: str, current_time: datetime, proposed_rate: float,
+    def custom_entry_price(self, pair: str, trade: Optional[Trade], current_time: datetime, proposed_rate: float,
                            entry_tag: Optional[str], side: str, **kwargs) -> float:
       return proposed_rate
 ```
@@ -317,7 +317,7 @@ After:
         if current_profit > 0.10:
             return stoploss_from_open(0.07, current_profit, is_short=trade.is_short)
 
-        return stoploss_from_absolute(current_rate - (candle['atr'] * 2), current_rate, is_short=trade.is_short)
+        return stoploss_from_absolute(current_rate - (candle['atr'] * 2), current_rate, is_short=trade.is_short, leverage=trade.leverage)
 
 
 ```
