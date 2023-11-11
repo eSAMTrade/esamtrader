@@ -95,13 +95,28 @@ class Count(BaseModel):
     total_stake: float
 
 
-class PerformanceEntry(BaseModel):
-    pair: str
-    profit: float
+class __BaseStatsModel(BaseModel):
     profit_ratio: float
     profit_pct: float
     profit_abs: float
     count: int
+
+
+class Entry(__BaseStatsModel):
+    enter_tag: str
+
+
+class Exit(__BaseStatsModel):
+    exit_reason: str
+
+
+class MixTag(__BaseStatsModel):
+    mix_tag: str
+
+
+class PerformanceEntry(__BaseStatsModel):
+    pair: str
+    profit: float
 
 
 class Profit(BaseModel):
