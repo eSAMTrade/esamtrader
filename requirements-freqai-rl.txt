@@ -9,3 +9,4 @@ stable_baselines3==2.1.0
 sb3_contrib>=2.0.0a9
 # Progress bar for stable-baselines3 and sb3-contrib
 tqdm==4.66.1
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
